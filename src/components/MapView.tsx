@@ -1,15 +1,15 @@
 import { useEffect, useRef } from 'react';
-import * as LeafletModule from 'leaflet';
+import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-const L = ((LeafletModule as unknown) as { default?: typeof LeafletModule }).default || LeafletModule;
+// Fix for Leaflet in Vite/ESM
+// @ts-expect-error - Leaflet module resolution for different environments
+const Leaflet = (L?.map ? L : L?.default) || L;
 
 // Fix default marker icons
-// @ts-expect-error - L.Icon.Default might not be directly available in all Leaflet ESM versions
-const IconDefault = L.Icon?.Default;
+const IconDefault = Leaflet?.Icon?.Default;
 
 if (IconDefault) {
-  // @ts-expect-error - prototype property access on Default
   delete IconDefault.prototype._getIconUrl;
   IconDefault.mergeOptions({
     iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
@@ -18,8 +18,7 @@ if (IconDefault) {
   });
 }
 
-
-const pickupIcon = L.Icon ? new L.Icon({
+const pickupIcon = Leaflet?.Icon ? new Leaflet.Icon({
   iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
   iconSize: [25, 41],
@@ -28,7 +27,7 @@ const pickupIcon = L.Icon ? new L.Icon({
   shadowSize: [41, 41],
 }) : null;
 
-const destIcon = L.Icon ? new L.Icon({
+const destIcon = Leaflet?.Icon ? new Leaflet.Icon({
   iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
   iconSize: [25, 41],
@@ -54,18 +53,18 @@ export default function MapView({ center = [-6.2088, 106.8456], zoom = 13, picku
   const routeLayerRef = useRef<L.Polyline | null>(null);
 
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return;
+    if (!containerRef.current || mapRef.current || !Leaflet?.map) return;
 
-    const map = L.map(containerRef.current, {
+    const map = Leaflet.map(containerRef.current, {
       zoomControl: true,
       attributionControl: true,
     }).setView(center, zoom);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    Leaflet.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     }).addTo(map);
 
-    markersLayerRef.current = L.layerGroup().addTo(map);
+    markersLayerRef.current = Leaflet.layerGroup().addTo(map);
     mapRef.current = map;
 
     requestAnimationFrame(() => {
@@ -113,19 +112,19 @@ export default function MapView({ center = [-6.2088, 106.8456], zoom = 13, picku
     routeLayerRef.current = null;
 
     if (pickup) {
-      L.marker([pickup.lat, pickup.lng], { icon: pickupIcon })
+      Leaflet.marker([pickup.lat, pickup.lng], { icon: pickupIcon })
         .bindPopup(pickup.label || 'Titik Jemput')
         .addTo(layerGroup);
     }
 
     if (destination) {
-      L.marker([destination.lat, destination.lng], { icon: destIcon })
+      Leaflet.marker([destination.lat, destination.lng], { icon: destIcon })
         .bindPopup(destination.label || 'Tujuan')
         .addTo(layerGroup);
     }
 
     if (showRoute && pickup && destination) {
-      routeLayerRef.current = L.polyline(
+      routeLayerRef.current = Leaflet.polyline(
         [
           [pickup.lat, pickup.lng],
           [destination.lat, destination.lng],
