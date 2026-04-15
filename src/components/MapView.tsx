@@ -1,32 +1,41 @@
 import { useEffect, useRef } from 'react';
-import * as L from 'leaflet';
+import * as LeafletModule from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// Fix default marker icons
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-});
+const L = ((LeafletModule as unknown) as { default?: typeof LeafletModule }).default || LeafletModule;
 
-const pickupIcon = new L.Icon({
+// Fix default marker icons
+// @ts-expect-error - L.Icon.Default might not be directly available in all Leaflet ESM versions
+const IconDefault = L.Icon?.Default;
+
+if (IconDefault) {
+  // @ts-expect-error - prototype property access on Default
+  delete IconDefault.prototype._getIconUrl;
+  IconDefault.mergeOptions({
+    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+  });
+}
+
+
+const pickupIcon = L.Icon ? new L.Icon({
   iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
   iconSize: [25, 41],
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
   shadowSize: [41, 41],
-});
+}) : null;
 
-const destIcon = new L.Icon({
+const destIcon = L.Icon ? new L.Icon({
   iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
   iconSize: [25, 41],
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
   shadowSize: [41, 41],
-});
+}) : null;
 
 interface MapViewProps {
   center?: [number, number];
@@ -71,7 +80,7 @@ export default function MapView({ center = [-6.2088, 106.8456], zoom = 13, picku
       markersLayerRef.current = null;
       routeLayerRef.current = null;
     };
-  }, []);
+  }, [center, zoom]);
 
   useEffect(() => {
     if (!mapRef.current) return;
