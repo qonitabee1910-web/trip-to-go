@@ -105,7 +105,7 @@ export default function MapView({ center = [-6.2088, 106.8456], zoom = 13, picku
 
     if (pickup) {
       L.marker([pickup.lat, pickup.lng], { icon: pickupIcon })
-        .bindPopup(popup.label || 'Titik Jemput')
+        .bindPopup(pickup.label || 'Titik Jemput')
         .addTo(layerGroup);
     }
 
