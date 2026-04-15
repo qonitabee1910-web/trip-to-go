@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet';
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -33,49 +33,48 @@ interface MapViewProps {
   showRoute?: boolean;
 }
 
-function MapUpdater({ center, zoom }: { center: [number, number]; zoom: number }) {
-  const map = useMap();
-  useEffect(() => { map.setView(center, zoom); }, [center, zoom, map]);
-  return null;
+interface ReactLeafletModule {
+  MapContainer: ComponentType<any>;
+  Marker: ComponentType<any>;
+  Popup: ComponentType<any>;
+  Polyline: ComponentType<any>;
+  TileLayer: ComponentType<any>;
+  useMap: () => L.Map;
 }
 
-function ClickHandler({ onClick }: { onClick?: (lat: number, lng: number) => void }) {
-  const map = useMap();
-  useEffect(() => {
-    if (!onClick) return;
-    const handler = (e: L.LeafletMouseEvent) => onClick(e.latlng.lat, e.latlng.lng);
-    map.on('click', handler);
-    return () => { map.off('click', handler); };
-  }, [map, onClick]);
-  return null;
-}
+const LazyMapInner = lazy(() => import('./MapViewInner'));
 
 export default function MapView({ center = [-6.2088, 106.8456], zoom = 13, pickup, destination, onMapClick, className = '', showRoute = false }: MapViewProps) {
-  const routeLine: [number, number][] = pickup && destination
-    ? [[pickup.lat, pickup.lng], [destination.lat, destination.lng]]
-    : [];
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  const fallback = useMemo(
+    () => (
+      <div className={`rounded-lg bg-muted/50 border ${className}`} style={{ height: '100%', minHeight: 300 }} />
+    ),
+    [className],
+  );
+
+  if (!isClient) {
+    return fallback;
+  }
 
   return (
-    <MapContainer center={center} zoom={zoom} className={`rounded-lg ${className}`} style={{ height: '100%', minHeight: 300 }}>
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+    <Suspense fallback={fallback}>
+      <LazyMapInner
+        center={center}
+        zoom={zoom}
+        pickup={pickup}
+        destination={destination}
+        onMapClick={onMapClick}
+        className={className}
+        showRoute={showRoute}
+        pickupIcon={pickupIcon}
+        destIcon={destIcon}
       />
-      <MapUpdater center={center} zoom={zoom} />
-      <ClickHandler onClick={onMapClick} />
-      {pickup && (
-        <Marker position={[pickup.lat, pickup.lng]} icon={pickupIcon}>
-          <Popup>{pickup.label || 'Titik Jemput'}</Popup>
-        </Marker>
-      )}
-      {destination && (
-        <Marker position={[destination.lat, destination.lng]} icon={destIcon}>
-          <Popup>{destination.label || 'Tujuan'}</Popup>
-        </Marker>
-      )}
-      {showRoute && routeLine.length === 2 && (
-        <Polyline positions={routeLine} color="hsl(217, 91%, 60%)" weight={4} dashArray="10, 6" />
-      )}
-    </MapContainer>
+    </Suspense>
   );
 }
