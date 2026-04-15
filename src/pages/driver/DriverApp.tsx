@@ -9,7 +9,7 @@ import { mockRideOrders, mockShuttleBookings } from '@/data/mockData';
 import type { RideOrder, ShuttleBooking } from '@/data/mockData';
 
 export default function DriverApp() {
-  const nav = useNavigate();
+  const { signOut } = useAuth();
   const [rideOrders, setRideOrders] = useState<RideOrder[]>(mockRideOrders);
   const [shuttleOrders] = useState<ShuttleBooking[]>(mockShuttleBookings);
   const [selectedOrder, setSelectedOrder] = useState<RideOrder | null>(null);
