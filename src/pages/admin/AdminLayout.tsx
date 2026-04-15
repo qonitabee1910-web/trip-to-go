@@ -46,7 +46,7 @@ function AdminSidebar() {
 }
 
 export default function AdminLayout() {
-  const nav = useNavigate();
+  const { signOut } = useAuth();
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
@@ -56,7 +56,7 @@ export default function AdminLayout() {
             <SidebarTrigger />
             <span className="font-bold text-sm">RideApp Admin</span>
             <div className="flex-1" />
-            <button onClick={() => nav('/')} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+            <button onClick={signOut} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
               <ArrowLeft className="w-3 h-3" /> Keluar
             </button>
           </header>
