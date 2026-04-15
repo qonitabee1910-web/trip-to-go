@@ -13,6 +13,9 @@ export default defineConfig(({ mode }) => ({
     },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  optimizeDeps: {
+    exclude: ["leaflet", "react-leaflet", "@react-leaflet/core"],
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
