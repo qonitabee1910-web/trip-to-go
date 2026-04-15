@@ -1,65 +1,117 @@
 
-# Aplikasi Ride On-Demand & Shuttle Booking
+
+# Auth RBAC (Driver, User, Admin)
 
 ## Ringkasan
-Aplikasi transportasi dengan 3 portal: **Customer**, **Admin**, dan **Driver**. Desain bersih Cloud White (#fafbfc, #e8ecf1, #94a3b8, #3b82f6) dengan peta interaktif menggunakan Leaflet (gratis, tanpa API key). Fokus UI & flow dulu.
+Menambahkan sistem autentikasi dengan Role-Based Access Control (RBAC) menggunakan **Lovable Cloud** (Supabase). Tiga role: `user` (customer), `admin`, dan `driver`. Setiap role hanya bisa mengakses portal masing-masing.
 
 ---
 
-## 1. Struktur & Navigasi
+## 1. Database Setup (Migrations)
 
-- **Landing Page** — Pilih masuk sebagai Customer, Admin, atau Driver
-- **Customer App** — Bottom navigation mobile-first (Home, Riwayat, Profil)
-- **Admin Dashboard** — Sidebar layout (Kelola Rute, Harga, Pesanan, Kendaraan)
-- **Driver App** — Tampilan pesanan masuk & status
+### Migration 1: Role enum & user_roles table
+```sql
+CREATE TYPE public.app_role AS ENUM ('admin', 'driver', 'user');
+
+CREATE TABLE public.user_roles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  role app_role NOT NULL,
+  UNIQUE (user_id, role)
+);
+
+ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
+```
+
+### Migration 2: Security definer function
+```sql
+CREATE OR REPLACE FUNCTION public.has_role(_user_id UUID, _role app_role)
+RETURNS BOOLEAN
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.user_roles
+    WHERE user_id = _user_id AND role = _role
+  )
+$$;
+```
+
+### Migration 3: RLS policies & auto-assign default role
+- Users can read their own roles
+- Trigger on `auth.users` insert to auto-assign `'user'` role
+- RLS policy: authenticated users can SELECT their own roles
+
+### Migration 4: Profiles table (optional basic info)
+```sql
+CREATE TABLE public.profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  full_name TEXT,
+  phone TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+```
+With RLS: users read/update own profile. Auto-create on signup via trigger.
 
 ---
 
-## 2. Customer — Ride On-Demand Flow
+## 2. Frontend — New Files
 
-1. **Halaman utama** — Peta Leaflet fullscreen + input "Mau kemana?"
-2. **Pilih titik jemput** — Pin di peta atau ketik alamat
-3. **Pilih tujuan** — Pin di peta atau ketik alamat
-4. **Estimasi** — Tampilkan rute di peta, estimasi waktu & harga
-5. **Konfirmasi & Pesan** — Ringkasan pesanan, tombol "Pesan Sekarang"
-6. **Status Perjalanan** — Tracking sederhana (menunggu driver, dalam perjalanan, selesai)
+### `src/pages/Auth.tsx`
+- Login & Register form (email + password)
+- Tab switch antara Login / Daftar
+- Setelah login, redirect berdasarkan role:
+  - `admin` → `/admin`
+  - `driver` → `/driver`
+  - `user` → `/customer`
 
-## 3. Customer — Shuttle Flow
+### `src/hooks/useAuth.ts`
+- Hook untuk session state (`user`, `role`, `loading`)
+- Listen `onAuthStateChange`
+- Fetch role dari `user_roles` table
+- Expose `signIn`, `signUp`, `signOut`
 
-1. **Pilih Rayon** — Daftar rayon/rute tersedia (misal: Jakarta-Bandung)
-2. **Pilih Titik Jemput** — Titik jemput dalam rayon tersebut
-3. **Pilih Service** — Reguler, Executive, VIP (dengan deskripsi & harga)
-4. **Pilih Kendaraan** — HiAce, SUV, MiniCar (foto & kapasitas)
-5. **Pilih Seat** — Layout kursi visual, pilih tempat duduk
-6. **Konfirmasi** — Ringkasan lengkap pesanan
-7. **Tiket** — Tampilkan tiket digital + tombol Print/Download (PDF)
+### `src/components/ProtectedRoute.tsx`
+- Wrapper component yang cek auth + role
+- Redirect ke `/auth` jika belum login
+- Redirect ke halaman sesuai role jika akses portal lain
 
-## 4. Admin Dashboard
+---
 
-- **Kelola Rayon & Rute** — CRUD rayon, titik jemput, tujuan
-- **Kelola Harga** — Set harga per service, kendaraan, rute
-- **Kelola Kendaraan** — Daftar kendaraan, kapasitas, status
-- **Pesanan Masuk** — Daftar pesanan ride & shuttle, filter & status
-- **Statistik** — Ringkasan jumlah pesanan, pendapatan (chart sederhana)
+## 3. Frontend — Modified Files
 
-## 5. Driver App
+### `src/App.tsx`
+- Wrap routes dengan `ProtectedRoute`:
+  - `/customer/*` → requires role `user`
+  - `/admin/*` → requires role `admin`
+  - `/driver` → requires role `driver`
+- Add `/auth` route
 
-- **Pesanan Masuk** — Daftar request dari customer
-- **Detail Pesanan** — Info jemput, tujuan, penumpang
-- **Update Status** — Terima/tolak, mulai perjalanan, selesai
-- **Peta Navigasi** — Tampilkan rute di peta
+### `src/pages/Landing.tsx`
+- Ubah dari pilih role manual → redirect ke `/auth` jika belum login, atau redirect ke portal sesuai role jika sudah login
 
-## 6. Fitur Pendukung
+### Customer/Admin/Driver headers
+- Update tombol "Keluar" untuk call `signOut` dari Supabase
 
-- **Seat Picker** — Komponen visual layout kursi untuk HiAce/SUV/MiniCar
-- **Tiket PDF** — Generate & download tiket shuttle
-- **Peta Leaflet** — Pin lokasi, tampilkan rute, geocoding
-- **Responsive** — Mobile-first untuk customer & driver, desktop untuk admin
+---
 
-## 7. Teknologi
+## 4. Flow
 
-- **Leaflet + React-Leaflet** untuk peta interaktif
-- **jsPDF** untuk generate tiket PDF
-- **Lucide icons** untuk ikon
-- **shadcn/ui** untuk komponen UI
-- **Data dummy** (mock data) untuk semua flow — siap diganti backend nanti
+```text
+User buka app → Landing
+  ├── Belum login → Redirect ke /auth (Login/Register)
+  │   └── Register → auto-assign role 'user'
+  │   └── Login → fetch role → redirect ke portal
+  ├── Sudah login (role: user) → /customer
+  ├── Sudah login (role: admin) → /admin
+  └── Sudah login (role: driver) → /driver
+```
+
+Admin bisa assign role `driver` atau `admin` ke user lain via admin panel (future enhancement).
+
+---
+
+## 5. Kebutuhan
+- **Lovable Cloud** harus diaktifkan untuk Supabase auth & database
+- Semua UI tetap Bahasa Indonesia
+- Mock data tetap berfungsi untuk demo
+
