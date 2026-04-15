@@ -29,7 +29,7 @@ export default function DriverApp() {
   return (
     <div className="min-h-screen bg-background">
       <header className="bg-card border-b p-4 flex items-center gap-3">
-        <button onClick={() => nav('/')} className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center">
+        <button onClick={signOut} className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center">
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div>
